@@ -145,3 +145,4 @@ log_box = st.container(height=200)
 with log_box:
     for log in st.session_state.system_logs:
         st.text(log)
+run_autonomous_background_loop()
