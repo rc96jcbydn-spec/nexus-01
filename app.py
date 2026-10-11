@@ -20,14 +20,8 @@ st.set_page_config(
 STATE_FILE = "nexus_state.json"
 
 def load_state():
-    """Disk üzerinde kayıtlı dosya varsa yükle, yoksa başlangıç verilerini ver."""
-    if os.path.exists(STATE_FILE):
-        try:
-            with open(STATE_FILE, "r", encoding="utf-8") as f:
-                return json.load(f)
-        except:
-            pass
-    return {
+    """Disk üzerinde kayıtlı dosya varsa yükle, eksik anahtarları varsayılanlarla tamamla."""
+    defaults = {
         "evolution_gen": 32,
         "vector_nodes": 3170,
         "agent_fitness": 99.9,
@@ -37,6 +31,19 @@ def load_state():
         ],
         "system_logs": [f"[{datetime.now().strftime('%H:%M:%S')}] NEXUS-01 Zirve çekirdeği kalıcı hafızayla başlatıldı."]
     }
+    
+    if os.path.exists(STATE_FILE):
+        try:
+            with open(STATE_FILE, "r", encoding="utf-8") as f:
+                data = json.load(f)
+                # Eski dosyalarda olabilecek eksik anahtarları güvenle ekle
+                for key, val in defaults.items():
+                    if key not in data:
+                        data[key] = val
+                return data
+        except:
+            pass
+    return defaults
 
 def save_state():
     """Tüm güncel verileri otomatik olarak diske (JSON dosyasına) kaydet."""
@@ -51,7 +58,7 @@ def save_state():
     with open(STATE_FILE, "w", encoding="utf-8") as f:
         json.dump(state_data, f, ensure_ascii=False, indent=4)
 
-# Dosyadan gelen verileri session_state içine yükle
+# Dosyadan gelen verileri session_state içine güvenle yükle
 saved_data = load_state()
 
 if "evolution_gen" not in st.session_state:
