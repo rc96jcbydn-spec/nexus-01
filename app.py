@@ -443,4 +443,4 @@ with tab_siem:
             st.text(log)
 
 st.divider()
-st.markdown("<p style='text-align: center; color: #64748b; font-size: 0.85rem;'>NEXUS-01 & CYBER-NEXUS Zero-Loss Cumulative Master Core • 11 Dilli & Tam Donanımlı</p>", unsafe_level_html=True if 'unsafe_level_html' in globals() else False)
+st.markdown("<p style='text-align: center; color: #64748b; font-size: 0.85rem;'>NEXUS-01 & CYBER-NEXUS Zero-Loss Cumulative Master Core • 11 Dilli & Tam Donanımlı</p>", unsafe_allow_html=True)
