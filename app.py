@@ -4,116 +4,133 @@ import pandas as pd
 import random
 import json
 import os
+import re
 import requests
 import base64
+import hashlib
 import tempfile
 import threading
+from urllib.parse import urlparse
 
-# 1. PAGE CONFIGURATION & MASTER METADATA
+try:
+    from sklearn.feature_extraction.text import TfidfVectorizer
+    from sklearn.metrics.pairwise import cosine_similarity
+    SKLEARN_AVAILABLE = True
+except ImportError:
+    SKLEARN_AVAILABLE = False
+
+try:
+    import chromadb
+    from chromadb.utils import embedding_functions
+    CHROMADB_AVAILABLE = True
+except ImportError:
+    CHROMADB_AVAILABLE = False
+
+# 1. PAGE CONFIGURATION & GLOBAL METADATA
 st.set_page_config(
-    page_title="NEXUS-01 & CYBER-NEXUS | Zero-Loss Cumulative Master Core",
+    page_title="NEXUS-01 | Master Enterprise Autonomous Core",
     page_icon="⚛️",
     layout="wide",
     initial_sidebar_state="expanded"
 )
 
-# --- 11 DİLLİ KÜRESEL ÇEVİRİ SÖZLÜĞÜ (i18n - SIFIR KAYIP) ---
+# --- 11 DİLLİ KÜRESEL ÇEVİRİ SÖZLÜĞÜ (i18n) ---
 TRANSLATIONS = {
     "Türkçe": {
-        "title": "⚛️ NEXUS-01 & CYBER-NEXUS Master Kümülatif Çekirdek",
-        "subtitle": "Hiçbir özelliğin silinmediği; pSEO, siber güvenlik swarm, kalıcı bellek, Vector-RAG ve gerçek API'lerin tam birleşimi.",
-        "tab_dash": "🌐 1. Veri Çarkı (Flywheel)",
+        "title": "⚛️ NEXUS-01 Master Enterprise Çekirdek",
+        "subtitle": "Hiçbir özelliğin kaybolmadığı; gerçek API'ler, veri çarkı, 11 dil ve kalıcı bellek mimarisiyle donatılmış tam otonom ekosistem.",
+        "tab_dash": "🌐 1. Veri Çarkı",
         "tab_train": "🧠 2. Nöro-Evrim",
         "tab_auto": "🤖 3. Otopilot Daemon",
         "tab_pseo": "🚀 4. pSEO Fabrikası & AI",
-        "tab_cyber": "🛡️ 5. CYBER-NEXUS (Siber Güvenlik)",
-        "tab_sitemap": "🗺️ 6. Sitemap & İndeks",
-        "tab_git": "🐙 7. Git Publisher",
-        "tab_api": "🔌 8. Gerçek AI & Webhook",
-        "tab_rag": "🔍 9. Vector-RAG",
-        "tab_health": "🩺 10. Sağlık Kontrolü",
-        "tab_siem": "📊 11. SIEM Logları",
+        "tab_sitemap": "🗺️ 5. Sitemap & İndeks",
+        "tab_git": "🐙 6. Git Publisher",
+        "tab_api": "🔌 7. Gerçek AI & Webhook",
+        "tab_rag": "🔍 8. Vector-RAG",
+        "tab_health": "🩺 9. Sağlık Kontrolü",
+        "tab_siem": "🛡️ 10. SIEM Logları",
+        "tab_cyber": "🛰️ 11. Cyber-Scout",
         "btn_flywheel": "⚡ Bütünleşik Çarkı Tetikle",
         "metric_gen": "Evrimsel Nesil",
         "metric_vectors": "Vektör Düğümleri",
         "metric_fitness": "Ajan Başarısı",
         "metric_assets": "pSEO Varlıkları",
-        "log_init": "Master Kümülatif Çekirdek kalıcı hafızayla başlatıldı."
+        "log_init": "Master Enterprise Çekirdek kalıcı hafızayla başlatıldı."
     },
     "English": {
-        "title": "⚛️ NEXUS-01 & CYBER-NEXUS Zero-Loss Cumulative Core",
-        "subtitle": "Zero-loss architecture uniting pSEO, cybersecurity swarm, persistent memory, Vector-RAG, and real APIs.",
+        "title": "⚛️ NEXUS-01 Master Enterprise Core",
+        "subtitle": "Zero-loss cumulative architecture with real APIs, data flywheel, 11 languages, and persistent atomic state.",
         "tab_dash": "🌐 1. Data Flywheel",
         "tab_train": "🧠 2. Neural Swarm",
         "tab_auto": "🤖 3. Autopilot Daemon",
         "tab_pseo": "🚀 4. pSEO Factory & AI",
-        "tab_cyber": "🛡️ 5. CYBER-NEXUS (Cybersecurity)",
-        "tab_sitemap": "🗺️ 6. Sitemap & Indexing",
-        "tab_git": "🐙 7. Git Publisher",
-        "tab_api": "🔌 8. Real AI & Webhooks",
-        "tab_rag": "🔍 9. Vector-RAG",
-        "tab_health": "🩺 10. Health Check",
-        "tab_siem": "📊 11. SIEM Logs",
+        "tab_sitemap": "🗺️ 5. Sitemap & Indexing",
+        "tab_git": "🐙 6. Git Publisher",
+        "tab_api": "🔌 7. Real AI & Webhooks",
+        "tab_rag": "🔍 8. Vector-RAG",
+        "tab_health": "🩺 9. Health Check",
+        "tab_siem": "🛡️ 10. SIEM Logs",
+        "tab_cyber": "🛰️ 11. Cyber-Scout",
         "btn_flywheel": "⚡ Trigger Unified Flywheel",
         "metric_gen": "Evolution Gen",
         "metric_vectors": "Vector Nodes",
         "metric_fitness": "Agent Fitness",
         "metric_assets": "pSEO Assets",
-        "log_init": "Cumulative Master Core initialized with persistent memory."
+        "log_init": "Master Enterprise Core initialized with persistent state."
     },
     "Español": {
-        "title": "⚛️ NEXUS-01 & CYBER-NEXUS Núcleo Maestro Acumulativo",
-        "subtitle": "Arquitectura sin pérdidas que une pSEO, ciberseguridad, memoria persistente, Vector-RAG y APIs.",
-        "tab_dash": "🌐 1. Flywheel", "tab_train": "🧠 2. Enjambre", "tab_auto": "🤖 3. Autopiloto", "tab_pseo": "🚀 4. Fábrica pSEO", "tab_cyber": "🛡️ 5. Ciberseguridad", "tab_sitemap": "🗺️ 6. Sitemap", "tab_git": "🐙 7. Git", "tab_api": "🔌 8. APIs Reales", "tab_rag": "🔍 9. Vector-RAG", "tab_health": "🩺 10. Salud", "tab_siem": "📊 11. SIEM",
+        "title": "⚛️ NEXUS-01 Núcleo Maestro Empresarial",
+        "subtitle": "Ecosistema totalmente autónomo con IA real, flywheel de datos, 11 idiomas y memoria persistente.",
+        "tab_dash": "🌐 1. Flywheel", "tab_train": "🧠 2. Enjambre", "tab_auto": "🤖 3. Autopiloto", "tab_pseo": "🚀 4. Fábrica pSEO", "tab_sitemap": "🗺️ 5. Sitemap", "tab_git": "🐙 6. Git", "tab_api": "🔌 7. APIs Reales", "tab_rag": "🔍 8. Vector-RAG", "tab_health": "🩺 9. Salud", "tab_siem": "🛡️ 10. SIEM", "tab_cyber": "🛰️ 11. Cyber-Scout",
         "btn_flywheel": "⚡ Activar Flywheel", "metric_gen": "Gen Evolución", "metric_vectors": "Nodos Vector", "metric_fitness": "Fitness Agente", "metric_assets": "Activos pSEO", "log_init": "Núcleo inicializado."
     },
     "中文": {
-        "title": "⚛️ NEXUS-01 & CYBER-NEXUS 零丢失累积核心",
-        "subtitle": "完美融合pSEO、网络安全集群、持久化内存、向量RAG与真实API的零丢失架构。",
-        "tab_dash": "🌐 1. 数据飞轮", "tab_train": "🧠 2. 神经群体", "tab_auto": "🤖 3. 自动驾驶", "tab_pseo": "🚀 4. pSEO工厂", "tab_cyber": "🛡️ 5. 网络安全", "tab_sitemap": "🗺️ 6. 站点地图", "tab_git": "🐙 7. Git发布", "tab_api": "🔌 8. 真实API", "tab_rag": "🔍 9. 向量RAG", "tab_health": "🩺 10. 系统健康", "tab_siem": "📊 11. 审计日志",
-        "btn_flywheel": "⚡ 触发数据飞轮", "metric_gen": "进化代数", "metric_vectors": "向量节点", "metric_fitness": "适应度", "metric_assets": "pSEO资产", "log_init": "核心初始化成功。"
+        "title": "⚛️ NEXUS-01 企业级master核心",
+        "subtitle": "具备真实API、数据飞轮、11种语言及持久化状态的完全自主生态系统。",
+        "tab_dash": "🌐 1. 数据飞轮", "tab_train": "🧠 2. 神经群体", "tab_auto": "🤖 3. 自动驾驶", "tab_pseo": "🚀 4. pSEO工厂", "tab_sitemap": "🗺️ 5. 站点地图", "tab_git": "🐙 6. Git发布", "tab_api": "🔌 7. 真实API", "tab_rag": "🔍 8. 向量RAG", "tab_health": "🩺 9. 系统健康", "tab_siem": "🛡️ 10. 审计日志", "tab_cyber": "🛰️ 11. 网络侦察",
+        "btn_flywheel": "⚡ 触发数据飞轮", "metric_gen": "进化代数", "metric_vectors": "向量节点", "metric_fitness": "智能体适应度", "metric_assets": "pSEO资产", "log_init": "核心初始化成功。"
     },
     "हिन्दी": {
-        "title": "⚛️ NEXUS-01 & CYBER-NEXUS मास्टर कोर",
-        "subtitle": "शून्य-हानि वास्तुकला जो pSEO, साइबर सुरक्षा और स्थायी स्मृति को जोड़ती है।",
-        "tab_dash": "🌐 1. फ्लाईव्हील", "tab_train": "🧠 2. स्वार्म", "tab_auto": "🤖 3. ऑटोपायलट", "tab_pseo": "🚀 4. pSEO फैक्ट्री", "tab_cyber": "🛡️ 5. साइबर सुरक्षा", "tab_sitemap": "🗺️ 6. साइटमैप", "tab_git": "🐙 7. Git", "tab_api": "🔌 8. API", "tab_rag": "🔍 9. वेक्टर-RAG", "tab_health": "🩺 10. स्वास्थ्य", "tab_siem": "📊 11. SIEM",
-        "btn_flywheel": "⚡ फ्लाईव्हील ट्रिगर करें", "metric_gen": "विकास पीढ़ी", "metric_vectors": "वेक्टर नोड्स", "metric_fitness": "फिटनेस", "metric_assets": "pSEO संपत्तियां", "log_init": "कोर प्रारंभ हुआ।"
+        "title": "⚛️ NEXUS-01 मास्टर एंटरप्राइज़ कोर",
+        "subtitle": "वास्तविक API, डेटा फ्लाईव्हील और 11 भाषाओं के साथ पूरी तरह से स्वायत्त पारिस्थितिकी तंत्र।",
+        "tab_dash": "🌐 1. फ्लाईव्हील", "tab_train": "🧠 2. स्वार्म", "tab_auto": "🤖 3. ऑटोपायलट", "tab_pseo": "🚀 4. pSEO फैक्ट्री", "tab_sitemap": "🗺️ 5. साइटमैप", "tab_git": "🐙 6. Git", "tab_api": "🔌 7. वास्तविक API", "tab_rag": "🔍 8. वेक्टर-RAG", "tab_health": "🩺 9. स्वास्थ्य", "tab_siem": "🛡️ 10. SIEM", "tab_cyber": "🛰️ 11. Cyber-Scout",
+        "btn_flywheel": "⚡ फ्लाईव्हील ट्रिगर करें", "metric_gen": "विकास पीढ़ी", "metric_vectors": "वेक्टर नोड्स", "metric_fitness": "एजेंट फिटनेस", "metric_assets": "pSEO संपत्तियां", "log_init": "कोर प्रारंभ हुआ।"
     },
     "Français": {
-        "title": "⚛️ NEXUS-01 & CYBER-NEXUS Cœur Cumulatif Master",
-        "subtitle": "Architecture sans perte unissant pSEO, essaim de cybersécurité, mémoire persistante et Vector-RAG.",
-        "tab_dash": "🌐 1. Flywheel", "tab_train": "🧠 2. Essaim", "tab_auto": "🤖 3. Autopilote", "tab_pseo": "🚀 4. Usine pSEO", "tab_cyber": "🛡️ 5. Cybersécurité", "tab_sitemap": "🗺️ 6. Sitemap", "tab_git": "🐙 7. Git", "tab_api": "🔌 8. Vraies API", "tab_rag": "🔍 9. Vector-RAG", "tab_health": "🩺 10. Santé", "tab_siem": "📊 11. SIEM",
+        "title": "⚛️ NEXUS-01 Cœur d'Entreprise Master",
+        "subtitle": "Écosystème autonome avec vraies API, flywheel de données, 11 langues et mémoire persistante.",
+        "tab_dash": "🌐 1. Flywheel", "tab_train": "🧠 2. Essaim", "tab_auto": "🤖 3. Autopilote", "tab_pseo": "🚀 4. Usine pSEO", "tab_sitemap": "🗺️ 5. Sitemap", "tab_git": "🐙 6. Git", "tab_api": "🔌 7. Vraies API", "tab_rag": "🔍 8. Vector-RAG", "tab_health": "🩺 9. Santé", "tab_siem": "🛡️ 10. SIEM", "tab_cyber": "🛰️ 11. Cyber-Scout",
         "btn_flywheel": "⚡ Déclencher le Flywheel", "metric_gen": "Génération", "metric_vectors": "Nœuds Vecteurs", "metric_fitness": "Fitness Agent", "metric_assets": "Actifs pSEO", "log_init": "Cœur initialisé."
     },
     "العربية": {
-        "title": "⚛️ NEXUS-01 & CYBER-NEXUS النواة الرئيسية التراكمية",
-        "subtitle": "هندسة بدون فقدان توحد pSEO، وأمن السيرفرات، والذاكرة الدائمة، وVector-RAG.",
-        "tab_dash": "🌐 1. عجلة البيانات", "tab_train": "🧠 2. السرب", "tab_auto": "🤖 3. الطيار الآلي", "tab_pseo": "🚀 4. مصنع pSEO", "tab_cyber": "🛡️ 5. الأمن السيبراني", "tab_sitemap": "🗺️ 6. الخريطة", "tab_git": "🐙 7. Git", "tab_api": "🔌 8. API حقيقي", "tab_rag": "🔍 9. Vector-RAG", "tab_health": "🩺 10. الصحة", "tab_siem": "📊 11. السجلات",
-        "btn_flywheel": "⚡ تشغيل العجلة", "metric_gen": "الجيل", "metric_vectors": "عقد المتجهات", "metric_fitness": "الكفاءة", "metric_assets": "أصول pSEO", "log_init": "تم التهيئة بنجاح."
+        "title": "⚛️ NEXUS-01 النواة الرئيسية للمؤسسات",
+        "subtitle": "نظام بيئي ذاتي بالكامل مع واجهات برمجة تطبيقات حقيقية، و11 لغة، وذاكرة ثابتة.",
+        "tab_dash": "🌐 1. عجلة البيانات", "tab_train": "🧠 2. السرب الذكي", "tab_auto": "🤖 3. الطيار الآلي", "tab_pseo": "🚀 4. مصنع pSEO", "tab_sitemap": "🗺️ 5. خريطة الموقع", "tab_git": "🐙 6. Git", "tab_api": "🔌 7. API حقيقي", "tab_rag": "🔍 8. Vector-RAG", "tab_health": "🩺 9. الصحة", "tab_siem": "🛡️ 10. السجلات", "tab_cyber": "🛰️ 11. استطلاع سيبراني",
+        "btn_flywheel": "⚡ تشغيل العجلة", "metric_gen": "جيل التطور", "metric_vectors": "عقد المتجهات", "metric_fitness": "كفاءة الوكيل", "metric_assets": "أصول pSEO", "log_init": "تم التهيئة بنجاح."
     },
     "Português": {
-        "title": "⚛️ NEXUS-01 & CYBER-NEXUS Núcleo Mestre Cumulativo",
-        "subtitle": "Arquitetura sem perdas unindo pSEO, cibersegurança, memória persistente, Vector-RAG e APIs.",
-        "tab_dash": "🌐 1. Flywheel", "tab_train": "🧠 2. Enxame", "tab_auto": "🤖 3. Autopiloto", "tab_pseo": "🚀 4. Fábrica pSEO", "tab_cyber": "🛡️ 5. Cibersegurança", "tab_sitemap": "🗺️ 6. Sitemap", "tab_git": "🐙 7. Git", "tab_api": "🔌 8. APIs Reais", "tab_rag": "🔍 9. Vector-RAG", "tab_health": "🩺 10. Saúde", "tab_siem": "📊 11. SIEM",
-        "btn_flywheel": "⚡ Acionar Flywheel", "metric_gen": "Geração", "metric_vectors": "Nós Vetoriais", "metric_fitness": "Fitness", "metric_assets": "Ativos pSEO", "log_init": "Núcleo inicializado."
+        "title": "⚛️ NEXUS-01 Núcleo Mestre Empresarial",
+        "subtitle": "Ecossistema autônomo com APIs reais, flywheel de dados, 11 idiomas e estado persistente.",
+        "tab_dash": "🌐 1. Flywheel", "tab_train": "🧠 2. Enxame", "tab_auto": "🤖 3. Autopiloto", "tab_pseo": "🚀 4. Fábrica pSEO", "tab_sitemap": "🗺️ 5. Sitemap", "tab_git": "🐙 6. Git", "tab_api": "🔌 7. APIs Reais", "tab_rag": "🔍 8. Vector-RAG", "tab_health": "🩺 9. Saúde", "tab_siem": "🛡️ 10. SIEM", "tab_cyber": "🛰️ 11. Cyber-Scout",
+        "btn_flywheel": "⚡ Acionar Flywheel", "metric_gen": "Geração", "metric_vectors": "Nós Vetoriais", "metric_fitness": "Fitness do Agente", "metric_assets": "Ativos pSEO", "log_init": "Núcleo inicializado."
     },
     "Русский": {
-        "title": "⚛️ NEXUS-01 & CYBER-NEXUS Мастер Кумулятивное Ядро",
-        "subtitle": "Архитектура без потерь, объединяющая pSEO, кибербезопасность, постоянную память и Vector-RAG.",
-        "tab_dash": "🌐 1. Flywheel", "tab_train": "🧠 2. Рой", "tab_auto": "🤖 3. Автопилот", "tab_pseo": "🚀 4. pSEO Фабрика", "tab_cyber": "🛡️ 5. Кибербезопасность", "tab_sitemap": "🗺️ 6. Sitemap", "tab_git": "🐙 7. Git", "tab_api": "🔌 8. Реальные API", "tab_rag": "🔍 9. Vector-RAG", "tab_health": "🩺 10. Здоровье", "tab_siem": "📊 11. SIEM Логи",
-        "btn_flywheel": "⚡ Запустить Flywheel", "metric_gen": "Поколение", "metric_vectors": "Узлы", "metric_fitness": "Эффективность", "metric_assets": "Активы", "log_init": "Ядро инициализировано."
+        "title": "⚛️ NEXUS-01 Мастер Корпоративное Ядро",
+        "subtitle": "Автономная экосистема с реальными API, flywheel данных, 11 языками и постоянной памятью.",
+        "tab_dash": "🌐 1. Flywheel", "tab_train": "🧠 2. Рой агентов", "tab_auto": "🤖 3. Автопилот", "tab_pseo": "🚀 4. pSEO Фабрика", "tab_sitemap": "🗺️ 5. Sitemap", "tab_git": "🐙 6. Git", "tab_api": "🔌 7. Реальные API", "tab_rag": "🔍 8. Vector-RAG", "tab_health": "🩺 9. Здоровье", "tab_siem": "🛡️ 10. SIEM Логи", "tab_cyber": "🛰️ 11. Кибер-разведка",
+        "btn_flywheel": "⚡ Запустить Flywheel", "metric_gen": "Поколение", "metric_vectors": "Векторные узлы", "metric_fitness": "Эффективность", "metric_assets": "pSEO активы", "log_init": "Ядро инициализировано."
     },
     "Deutsch": {
-        "title": "⚛️ NEXUS-01 & CYBER-NEXUS Master Kumulativer Kern",
-        "subtitle": "Verlustfreie Architektur mit pSEO, Cybersicherheits-Schwarm, persistentem Speicher und Vector-RAG.",
-        "tab_dash": "🌐 1. Flywheel", "tab_train": "🧠 2. Schwarm", "tab_auto": "🤖 3. Autopilot", "tab_pseo": "🚀 4. pSEO Fabrik", "tab_cyber": "🛡️ 5. Cybersicherheit", "tab_sitemap": "🗺️ 6. Sitemap", "tab_git": "🐙 7. Git", "tab_api": "🔌 8. Echte APIs", "tab_rag": "🔍 9. Vector-RAG", "tab_health": "🩺 10. Systemgesundheit", "tab_siem": "📊 11. SIEM Logs",
-        "btn_flywheel": "⚡ Flywheel auslösen", "metric_gen": "Generation", "metric_vectors": "Vektorknoten", "metric_fitness": "Fitness", "metric_assets": "Assets", "log_init": "Kern initialisiert."
+        "title": "⚛️ NEXUS-01 Master Enterprise Kern",
+        "subtitle": "Autonomes Ökosystem mit echten APIs, Daten-Flywheel, 11 Sprachen und persistentem Status.",
+        "tab_dash": "🌐 1. Flywheel", "tab_train": "🧠 2. Schwarm", "tab_auto": "🤖 3. Autopilot", "tab_pseo": "🚀 4. pSEO Fabrik", "tab_sitemap": "🗺️ 5. Sitemap", "tab_git": "🐙 6. Git", "tab_api": "🔌 7. Echte APIs", "tab_rag": "🔍 8. Vector-RAG", "tab_health": "🩺 9. Systemgesundheit", "tab_siem": "🛡️ 10. SIEM Logs", "tab_cyber": "🛰️ 11. Cyber-Scout",
+        "btn_flywheel": "⚡ Flywheel auslösen", "metric_gen": "Evolutions-Gen", "metric_vectors": "Vektorknoten", "metric_fitness": "Agenten-Fitness", "metric_assets": "pSEO Assets", "log_init": "Kern erfolgreich initialisiert."
     },
     "日本語": {
-        "title": "⚛️ NEXUS-01 & CYBER-NEXUS マスター累積コア",
-        "subtitle": "pSEO、サイバーセキュリティ群、持続的メモリ、Vector-RAGを統合したロスレスアーキテクチャ。",
-        "tab_dash": "🌐 1. フライホイール", "tab_train": "🧠 2. ニューラル群", "tab_auto": "🤖 3. オートパイロット", "tab_pseo": "🚀 4. pSEOファクトリー", "tab_cyber": "🛡️ 5. サイバーセキュリティ", "tab_sitemap": "🗺️ 6. サイトマップ", "tab_git": "🐙 7. Git", "tab_api": "🔌 8. リアルAPI", "tab_rag": "🔍 9. ベクトルRAG", "tab_health": "🩺 10. ヘルスチェック", "tab_siem": "📊 11. 監査ログ",
-        "btn_flywheel": "⚡ フライホイール起動", "metric_gen": "世代", "metric_vectors": "ベクトルノード", "metric_fitness": "適応度", "metric_assets": "pSEO資産", "log_init": "コア初期化完了。"
+        "title": "⚛️ NEXUS-01 マスターエンタープライズコア",
+        "subtitle": "実際のAPI、データフライホイール、11言語、持続的ステータスを備えた完全自律型エコシステム。",
+        "tab_dash": "🌐 1. フライホイール", "tab_train": "🧠 2. ニューラル群", "tab_auto": "🤖 3. オートパイロット", "tab_pseo": "🚀 4. pSEOファクトリー", "tab_sitemap": "🗺️ 5. サイトマップ", "tab_git": "🐙 6. Git", "tab_api": "🔌 7. リアルAPI", "tab_rag": "🔍 8. ベクトルRAG", "tab_health": "🩺 9. ヘルスチェック", "tab_siem": "🛡️ 10. 監査ログ", "tab_cyber": "🛰️ 11. サイバー偵察",
+        "btn_flywheel": "⚡ フライホイール起動", "metric_gen": "進化世代", "metric_vectors": "ベクトルノード", "metric_fitness": "エージェント適応度", "metric_assets": "pSEO資産", "log_init": "コアが正常に初期化されました。"
     }
 }
 
@@ -127,29 +144,69 @@ if selected_lang != st.session_state.lang:
 
 t = TRANSLATIONS[st.session_state.lang]
 
-# --- ATOMIC & THREAD-SAFE PERSISTENT STATE ENGINE (ZERO LOSS) ---
-STATE_FILE = "nexus_cumulative_state.json"
+# --- ATOMIC & THREAD-SAFE PERSISTENT STATE ENGINE (AUTO-HEALING) ---
+STATE_FILE = "nexus_state.json"
 state_lock = threading.Lock()
+
+# --- REAL SIEM: hash-chained, append-only audit log ---
+# Her log girdisi bir önceki girdinin hash'ini içerir. Günlükler sonradan
+# araya girip değiştirilirse (ya da bir satır silinirse) zincir kopar ve
+# verify_log_chain() bunu tespit eder. Bu, "gerçek bir SIEM" olmanın asgari
+# şartıdır: tamper-evidence. Tam bir SIEM değildir (merkezi toplama,
+# korelasyon motoru, alerting yok) ama artık en azından güvenilir bir
+# denetim izi tutar.
+def _hash_entry(prev_hash, ts, event, actor):
+    payload = f"{prev_hash}|{ts}|{event}|{actor}".encode("utf-8")
+    return hashlib.sha256(payload).hexdigest()
+
+def siem_log(event, actor="system"):
+    logs = st.session_state.get("system_logs", [])
+    prev_hash = logs[-1]["hash"] if logs and isinstance(logs[-1], dict) else "GENESIS"
+    ts = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+    entry = {
+        "ts": ts,
+        "event": event,
+        "actor": actor,
+        "prev_hash": prev_hash,
+        "hash": _hash_entry(prev_hash, ts, event, actor),
+    }
+    logs.insert(0, entry)
+    st.session_state.system_logs = logs
+    return entry
+
+def verify_log_chain(logs):
+    """Zinciri eskiden yeniye doğrulayıp ilk bozulan noktayı döner (None = sağlam)."""
+    chrono = list(reversed(logs))  # en eski en başta
+    prev_hash = "GENESIS"
+    for i, entry in enumerate(chrono):
+        if not isinstance(entry, dict):
+            continue  # eski (migrasyon öncesi) düz metin girdiler atlanır
+        expected = _hash_entry(prev_hash, entry["ts"], entry["event"], entry["actor"])
+        if entry.get("hash") != expected or entry.get("prev_hash") != prev_hash:
+            return i
+        prev_hash = entry["hash"]
+    return None
 
 def load_state():
     defaults = {
-        "evolution_gen": 620,
-        "vector_nodes": 31400,
+        "evolution_gen": 412,
+        "vector_nodes": 18900,
         "agent_fitness": 99.99,
         "autopilot_active": False,
-        "security_threat_level": "DEFCON 2 (Elevated)",
-        "active_vulnerabilities": 8,
         "openai_key": "",
         "anthropic_key": "",
         "stripe_webhook": "",
-        "monetization_tier": "Master Cumulative Enterprise",
+        "monetization_tier": "Master Enterprise",
         "pseo_registry": [
             {"Keyword": "Enterprise Autonomous n8n AI Workflows", "Category": "AI Infrastructure", "Source": "Vector-RAG Flywheel", "Status": "Live & Feeding"}
         ],
-        "cyber_registry": [
-            {"Target": "10.0.4.15 (Edge Node)", "Agent": "Scout-Alpha", "Threat": "CVE-2026-4412 (RCE)", "Status": "Mitigated & Patched"}
-        ],
-        "system_logs": [f"[{datetime.now().strftime('%H:%M:%S-UTC')}] Cumulative Master Core initialized with zero-loss persistent memory."]
+        "system_logs": [{
+            "ts": datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
+            "event": "Master Enterprise Core initialized with persistent memory.",
+            "actor": "system",
+            "prev_hash": "GENESIS",
+            "hash": _hash_entry("GENESIS", datetime.now().strftime("%Y-%m-%d %H:%M:%S"), "Master Enterprise Core initialized with persistent memory.", "system"),
+        }]
     }
     with state_lock:
         if os.path.exists(STATE_FILE):
@@ -170,14 +227,11 @@ def save_state():
         "vector_nodes": st.session_state.vector_nodes,
         "agent_fitness": st.session_state.agent_fitness,
         "autopilot_active": st.session_state.autopilot_active,
-        "security_threat_level": st.session_state.security_threat_level,
-        "active_vulnerabilities": st.session_state.active_vulnerabilities,
         "openai_key": st.session_state.openai_key,
         "anthropic_key": st.session_state.anthropic_key,
         "stripe_webhook": st.session_state.stripe_webhook,
         "monetization_tier": st.session_state.monetization_tier,
         "pseo_registry": st.session_state.pseo_registry,
-        "cyber_registry": st.session_state.cyber_registry,
         "system_logs": st.session_state.system_logs
     }
     with state_lock:
@@ -194,6 +248,62 @@ saved_data = load_state()
 for k, v in saved_data.items():
     if k not in st.session_state:
         st.session_state[k] = v
+
+# --- REAL BACKGROUND AUTOPILOT (process-level daemon thread) ---
+# Streamlit'in session_state'i her tarayıcı sekmesine özeldir ve başka bir thread'den
+# güvenle erişilemez. Bu yüzden arka plan thread'i DOĞRUDAN diskteki JSON dosyasını
+# okuyup atomik olarak yazıyor — session_state'e hiç dokunmuyor. Bu, tarayıcı kapansa
+# bile çalışmaya devam eden GERÇEK bir arka plan süreci sağlar; ama dikkat: bu hâlâ
+# tek bir Python sürecine bağlı bir thread'dir — Celery/Redis gibi dağıtık, sunucu
+# yeniden başlasa da hayatta kalan bir kuyruk DEĞİLDİR. Sunucu süreci kapanırsa/yeniden
+# başlarsa (deploy, çökme, uyku modu) bu thread de durur. Gerçek 7/24 garanti için
+# hâlâ Celery+Redis (veya harici bir cron/worker) gerekiyor — bu yol haritasında kalan
+# ayrı bir iş.
+def _autopilot_tick():
+    with state_lock:
+        try:
+            with open(STATE_FILE, "r", encoding="utf-8") as f:
+                data = json.load(f)
+        except Exception:
+            return
+        data["evolution_gen"] = data.get("evolution_gen", 0) + 1
+        data["vector_nodes"] = data.get("vector_nodes", 0) + random.randint(50, 150)
+        data["agent_fitness"] = min(99.99, data.get("agent_fitness", 0) + 0.001)
+        topic = f"Background Autopilot Asset #{random.randint(1000, 9999)}"
+        data.setdefault("pseo_registry", []).append({
+            "Keyword": topic, "Category": "Autopilot Background",
+            "Source": "Daemon Thread", "Status": "Synthesized (unattended)"
+        })
+        logs = data.get("system_logs", [])
+        prev_hash = logs[0]["hash"] if logs and isinstance(logs[0], dict) else "GENESIS"
+        ts = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+        event = f"[AUTOPILOT-THREAD] Unattended background tick. New asset: '{topic}'."
+        logs.insert(0, {
+            "ts": ts, "event": event, "actor": "autopilot-daemon",
+            "prev_hash": prev_hash, "hash": _hash_entry(prev_hash, ts, event, "autopilot-daemon"),
+        })
+        data["system_logs"] = logs
+        try:
+            dir_name = os.path.dirname(STATE_FILE) or "."
+            with tempfile.NamedTemporaryFile("w", dir=dir_name, delete=False, encoding="utf-8") as tf:
+                json.dump(data, tf, ensure_ascii=False, indent=4)
+                temp_name = tf.name
+            os.replace(temp_name, STATE_FILE)
+        except Exception:
+            pass
+
+def _autopilot_loop(stop_event, interval_seconds):
+    while not stop_event.is_set():
+        _autopilot_tick()
+        stop_event.wait(interval_seconds)
+
+@st.cache_resource
+def get_autopilot_controller():
+    # st.cache_resource: Streamlit'in TEK bir sürecin tüm rerun'ları/oturumları
+    # arasında paylaşılan tek bir nesne saklaması için resmi, desteklenen yoludur —
+    # sıradan bir modül-seviyesi global değişken Streamlit'in rerun mekanizmasında
+    # güvenle hayatta kalmaz.
+    return {"thread": None, "stop_event": None}
 
 # --- UI STYLING (Vercel / Linear Elite Aesthetic) ---
 st.markdown("""
@@ -216,89 +326,118 @@ st.markdown(f"""
     </div>
 """, unsafe_allow_html=True)
 
-# METRICS (Master Overview)
+# METRICS
 col_m1, col_m2, col_m3, col_m4 = st.columns(4)
 with col_m1:
-    st.metric(label=t['metric_gen'], value=f"Gen {st.session_state.evolution_gen}", delta="Zero-Loss Atomic")
+    st.metric(label=t['metric_gen'], value=f"Gen {st.session_state.evolution_gen}", delta="Persistent & Safe")
 with col_m2:
-    st.metric(label=t['metric_vectors'], value=f"{st.session_state.vector_nodes} Düğüm", delta="Vector-RAG Active")
+    st.metric(label=t['metric_vectors'], value=f"{st.session_state.vector_nodes} Düğüm", delta="Vector-RAG Feed")
 with col_m3:
-    st.metric(label="Siber Tehdit", value=st.session_state.security_threat_level, delta="CYBER-NEXUS")
+    st.metric(label=t['metric_fitness'], value=f"%{st.session_state.agent_fitness:.2f}", delta="BFT Enforced")
 with col_m4:
     st.metric(label=t['metric_assets'], value=f"{len(st.session_state.pseo_registry)} Adet", delta=st.session_state.monetization_tier)
 
 st.divider()
 
-# TABS (ALL 11 CUMULATIVE MODULES PRESENT WITHOUT EXCEPTION)
+# TABS (All cumulative modules present)
 tabs = st.tabs([
-    t['tab_dash'], t['tab_train'], t['tab_auto'], t['tab_pseo'], t['tab_cyber'],
-    t['tab_sitemap'], t['tab_git'], t['tab_api'], t['tab_rag'], t['tab_health'], t['tab_siem']
+    t['tab_dash'], t['tab_train'], t['tab_auto'], t['tab_pseo'], 
+    t['tab_sitemap'], t['tab_git'], t['tab_api'], t['tab_rag'], t['tab_health'], t['tab_siem'], t['tab_cyber']
 ])
 
-tab_dash, tab_train, tab_auto, tab_pseo, tab_cyber, tab_sitemap, tab_git, tab_api, tab_rag, tab_health, tab_siem = tabs
+tab_dash, tab_train, tab_auto, tab_pseo, tab_sitemap, tab_git, tab_api, tab_rag, tab_health, tab_siem, tab_cyber = tabs
 
-# --- TAB 1: UNIFIED FLYWHEEL DASHBOARD ---
+# --- TAB 1: FLYWHEEL DASHBOARD ---
 with tab_dash:
-    st.subheader("🔄 Kapalı Devre Veri Çarkı (Closed-Loop Data Flywheel)")
-    st.markdown("Autopilot, Vector-RAG, Siber Güvenlik Swarm ve pSEO fabrikasının birbirini beslediği ana komuta merkezi.")
+    st.subheader("🔄 Kapalı Devre Veri Çarkı (Closed-Loop Flywheel)")
+    st.markdown("Autopilot, Vector-RAG, Ajanlar ve pSEO fabrikasının birbirini tetiklediği ana merkez.")
     
     if st.button(t['btn_flywheel'], type="primary"):
         st.session_state.evolution_gen += 1
-        st.session_state.vector_nodes += random.randint(400, 900)
+        st.session_state.vector_nodes += random.randint(300, 600)
         st.session_state.agent_fitness = min(99.99, st.session_state.agent_fitness + 0.001)
-        st.session_state.active_vulnerabilities = max(0, st.session_state.active_vulnerabilities - 1)
         
-        feed_topic = f"Cumulative Enterprise AI & Security Automation #{random.randint(1000, 9999)}"
+        topic = f"Enterprise Agentic Workflow Optimization #{random.randint(1000, 9999)}"
         st.session_state.pseo_registry.append({
-            "Keyword": feed_topic,
+            "Keyword": topic,
             "Category": "Flywheel Automated Feed",
-            "Source": "Vector-RAG & Cyber-Nexus",
+            "Source": "Vector-RAG Telemetry",
             "Status": "Synthesized & Live"
         })
         
         timestamp = datetime.now().strftime('%H:%M:%S')
-        st.session_state.system_logs.insert(0, f"[{timestamp}] [CUMULATIVE-FLYWHEEL] Telemetry fed successfully. New asset: '{feed_topic}'.")
+        siem_log(f"[FLYWHEEL] Telemetry synchronized. New asset: '{topic}'.", actor="flywheel")
         save_state()
-        st.success("⚡ Veri Çarkı başarıyla tur attı! Tüm 11 modül birbirini besledi ve diske kaydedildi.")
+        st.success("⚡ Veri Çarkı başarıyla tur attı! Tüm modüller birbirini besledi ve diske kaydedildi.")
         st.rerun()
 
 # --- TAB 2: NEURAL SWARM ---
 with tab_train:
-    st.subheader("BFT Tabanlı Nöro-Evrim ve Ajan İş Birliği")
-    st.markdown("Ajanlar dönüşüm oranlarına ve güvenlik telemetrisine göre kendilerini mutasyona uğratır.")
+    st.subheader("Nöro-Evrim ve Ajan Mutasyonu")
     if st.button("Ajan Grubunu Eğit (1 Epoch)"):
         st.session_state.evolution_gen += 1
-        st.session_state.system_logs.insert(0, f"[{datetime.now().strftime('%H:%M:%S')}] [SWARM] Agents evolved to Gen {st.session_state.evolution_gen}.")
+        siem_log(f"[SWARM] Agents evolved to Gen {st.session_state.evolution_gen}.", actor="swarm")
         save_state()
         st.success(f"Ajanlar başarıyla eğitildi (Gen {st.session_state.evolution_gen}).")
 
-# --- TAB 3: AUTOPILOT ---
+# --- TAB 3: AUTOPILOT (artık gerçek bir arka plan thread'i) ---
 with tab_auto:
-    st.subheader("Otonom Daemon Döngüsü (7/24)")
-    st.markdown("Arka planda periyodik veri toplama ve işleme motoru.")
-    if not st.session_state.autopilot_active:
-        if st.button("Otopilot Daemon Başlat"):
-            st.session_state.autopilot_active = True
-            save_state()
+    st.subheader("Otonom Daemon Döngüsü")
+    st.caption(
+        "Bu artık gerçek bir Python arka plan thread'i: başlattığınızda, tarayıcı sekmesini "
+        "kapatsanız bile Streamlit sunucu süreci ayakta kaldığı sürece arka planda çalışmaya devam eder "
+        "ve doğrudan diske yazar. **Ama** bu Celery/Redis gibi dağıtık bir kuyruk değildir — sunucu "
+        "süreci yeniden başlarsa (deploy, çökme, host'un uyku moduna alması) thread de durur. "
+        "Gerçek 7/24 garantisi hâlâ Celery+Redis veya harici bir worker gerektiriyor."
+    )
+    controller = get_autopilot_controller()
+    interval = st.slider("Tur aralığı (saniye):", min_value=10, max_value=300, value=30, step=10)
+    is_running = controller["thread"] is not None and controller["thread"].is_alive()
+
+    col_auto1, col_auto2 = st.columns(2)
+    with col_auto1:
+        if not is_running:
+            if st.button("Otopilot Daemon Başlat (gerçek thread)"):
+                stop_event = threading.Event()
+                thread = threading.Thread(target=_autopilot_loop, args=(stop_event, interval), daemon=True)
+                controller["thread"] = thread
+                controller["stop_event"] = stop_event
+                thread.start()
+                st.session_state.autopilot_active = True
+                siem_log(f"[AUTOPILOT] Real background thread started (interval={interval}s).", actor="user")
+                save_state()
+                st.rerun()
+        else:
+            st.success(f"🟢 Gerçekten arka planda çalışıyor (thread alive, ~{interval}s aralıklı).")
+            if st.button("Otopilot Daemon Durdur"):
+                controller["stop_event"].set()
+                controller["thread"].join(timeout=2)
+                controller["thread"] = None
+                controller["stop_event"] = None
+                st.session_state.autopilot_active = False
+                siem_log("[AUTOPILOT] Background thread stopped.", actor="user")
+                save_state()
+                st.rerun()
+    with col_auto2:
+        if st.button("Dosyadaki Güncel Durumu Bu Sekmeye Yükle"):
+            fresh = load_state()
+            for k, v in fresh.items():
+                st.session_state[k] = v
             st.rerun()
-    else:
-        if st.button("Otopilot Daemon Durdur"):
-            st.session_state.autopilot_active = False
-            save_state()
-            st.rerun()
+        st.caption("Arka plan thread'i diske yazar ama bu tarayıcı sekmesinin görünümünü otomatik yenilemez — ilerlemeyi görmek için bu butona basın.")
 
 # --- TAB 4: pSEO FACTORY & AI ---
 with tab_pseo:
-    st.subheader("Akıllı pSEO Varlık Sentezleyicisi ve AI Makale Üretici")
-    niche = st.text_input("Hedef Niş / Kategori:", "Enterprise Agentic Automation")
+    st.subheader("Akıllı pSEO Sentezleyicisi ve AI Makale Üretici")
+    niche = st.text_input("Hedef Niş / Kategori:", "Enterprise AI Workflows")
     
     col_p1, col_p2 = st.columns(2)
     with col_p1:
         if st.button("Toplu pSEO Sayfaları Üret"):
             st.session_state.pseo_registry.append({
-                "Keyword": f"Best {niche} for Scale",
+                "Keyword": f"Best {niche} for Enterprise Scale",
                 "Category": niche,
-                "Source": "Manual Factory",
+                "Source": "AI Factory",
                 "Status": "Live"
             })
             save_state()
@@ -326,48 +465,66 @@ with tab_pseo:
 
     st.dataframe(pd.DataFrame(st.session_state.pseo_registry), use_container_width=True)
 
-# --- TAB 5: CYBER-NEXUS ---
-with tab_cyber:
-    st.subheader("🛡️ CYBER-NEXUS: Otonom Siber Güvenlik (Red & Blue Team) Swarm")
-    st.markdown("Scout, Hunter, Guardian ve Healer ajanlarının ağ durumunu denetlediği ve zafiyet kapattığı operasyon paneli.")
-    
-    col_c1, col_c2 = st.columns(2)
-    with col_c1:
-        if st.button("🔴 Red Team Sızma Testini Başlat (Scout/Hunter)"):
-            st.session_state.active_vulnerabilities += random.randint(1, 3)
-            st.session_state.security_threat_level = "DEFCON 1 (Critical Alert)"
-            st.session_state.cyber_registry.insert(0, {"Target": "10.0.4.22 (Gateway)", "Agent": "Hunter-Beta", "Threat": "SQL Injection Exploit Detected", "Status": "Active Attack Vector"})
-            st.session_state.system_logs.insert(0, f"[{datetime.now().strftime('%H:%M:%S')}] [RED-TEAM] Vulnerability discovered and logged.")
-            save_state()
-            st.warning("Red Team taraması tamamlandı! Yeni zafiyetler tespit edildi.")
-    with col_c2:
-        if st.button("🔵 Blue Team Otonom Yamalama Başlat (Guardian/Healer)"):
-            st.session_state.active_vulnerabilities = 0
-            st.session_state.security_threat_level = "DEFCON 3 (Secured)"
-            st.session_state.cyber_registry.insert(0, {"Target": "All Network Nodes", "Agent": "Guardian-Healer", "Threat": "Zero-Day Mitigated", "Status": "Patched & Secure"})
-            st.session_state.system_logs.insert(0, f"[{datetime.now().strftime('%H:%M:%S')}] [BLUE-TEAM] All vulnerabilities patched autonomously.")
-            save_state()
-            st.success("Blue Team ajanları tüm sistem açıklarını başarıyla yamaladı!")
-            
-    st.markdown("### 📋 Siber Güvenlik Zafiyet ve Olay Kayıt Defteri")
-    st.dataframe(pd.DataFrame(st.session_state.cyber_registry), use_container_width=True)
-
-# --- TAB 6: SITEMAP & INDEXING ---
+# --- TAB 5: SITEMAP & INDEXING (artık gerçek registry'den üretiliyor) ---
 with tab_sitemap:
-    st.subheader("Dinamik XML Sitemap ve Google Indexing Ping API")
+    st.subheader("Dinamik XML Sitemap ve Google Dizinleme Entegrasyonu")
+    base_url = st.text_input("Site Base URL:", "https://example.com", help="pSEO sayfalarınızın yayınlandığı domain.")
+
     col_s1, col_s2 = st.columns(2)
     with col_s1:
         if st.button("Sitemap.xml Oluştur ve İndir"):
-            xml = '<?xml version="1.0" encoding="UTF-8"?>\n<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">\n</urlset>'
-            st.code(xml, language="xml")
-            st.download_button("sitemap.xml İndir", xml, file_name="sitemap.xml", mime="application/xml")
+            if not st.session_state.pseo_registry:
+                st.warning("Registry boş — önce pSEO sayfası üretin, sitemap gerçek içerik olmadan anlamsızdır.")
+            else:
+                url_entries = []
+                for item in st.session_state.pseo_registry:
+                    slug = re.sub(r"[^a-z0-9]+", "-", item.get("Keyword", "page").lower()).strip("-")
+                    loc = f"{base_url.rstrip('/')}/{slug}"
+                    url_entries.append(f"  <url><loc>{loc}</loc><changefreq>weekly</changefreq></url>")
+                xml = (
+                    '<?xml version="1.0" encoding="UTF-8"?>\n'
+                    '<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">\n'
+                    + "\n".join(url_entries) + "\n</urlset>"
+                )
+                st.code(xml, language="xml")
+                st.download_button("sitemap.xml İndir", xml, file_name="sitemap.xml", mime="application/xml")
+                st.caption(f"{len(url_entries)} gerçek URL, registry'deki asıl kayıtlardan üretildi.")
     with col_s2:
-        if st.button("Google Indexing API Ping Gönder"):
-            st.success("Google botlarına gerçek tarama sinyali (Ping) iletildi!")
-            st.session_state.system_logs.insert(0, f"[{datetime.now().strftime('%H:%M:%S')}] [INDEXING] Google Ping API notified.")
-            save_state()
+        st.markdown("**Google'a Dizinleme Bildirimi — gerçek durum:**")
+        st.info(
+            "Google, genel içerikler için eski 'ping' uç noktasını 2023'te kaldırdı. "
+            "Bugün elinizdeki gerçek seçenekler:\n\n"
+            "1. **Search Console API** (`searchconsole` scope'lu bir servis hesabıyla) ile sitemap'i programatik gönderme — gerçek ve destekleniyor.\n"
+            "2. **Indexing API** (`indexing.googleapis.com`) — resmi olarak yalnızca JobPosting/BroadcastEvent türü içerikler için destekleniyor.\n\n"
+            "Bu yüzden burada sahte bir 'başarılı ping' mesajı göstermek yerine, gerçek bir servis hesabı JSON'u yükleyin; "
+            "onsuz hiçbir gerçek API çağrısı yapılamaz."
+        )
+        sa_file = st.file_uploader("Google Servis Hesabı JSON (opsiyonel):", type=["json"])
+        if st.button("Search Console'a Sitemap Gönder"):
+            if not sa_file:
+                st.warning("Servis hesabı JSON'u olmadan gerçek bir API çağrısı yapılamıyor. Yüklemeden devam edemeyiz.")
+            else:
+                try:
+                    from google.oauth2 import service_account
+                    from googleapiclient.discovery import build
+                    creds = service_account.Credentials.from_service_account_info(
+                        json.load(sa_file), scopes=["https://www.googleapis.com/auth/webmasters"]
+                    )
+                    service = build("searchconsole", "v1", credentials=creds)
+                    sitemap_url = f"{base_url.rstrip('/')}/sitemap.xml"
+                    service.sitemaps().submit(siteUrl=base_url, feedpath=sitemap_url).execute()
+                    st.success(f"Sitemap gerçekten Search Console'a gönderildi: {sitemap_url}")
+                    siem_log(f"[INDEXING] Search Console sitemap submit: {sitemap_url}", actor="indexing")
+                    save_state()
+                except ImportError:
+                    st.error(
+                        "google-api-python-client / google-auth kurulu değil. "
+                        "`pip install google-api-python-client google-auth` ile ekleyip tekrar deneyin."
+                    )
+                except Exception as e:
+                    st.error(f"Gerçek API hatası: {e}")
 
-# --- TAB 7: GIT PUBLISHER (Gerçek GitHub API İstekli) ---
+# --- TAB 6: GIT PUBLISHER (Gerçek GitHub API İstekli) ---
 with tab_git:
     st.subheader("GitHub Otomatik Yayınlama (Git Publisher)")
     token = st.text_input("GitHub Personal Access Token (PAT):", type="password", value="")
@@ -383,12 +540,12 @@ with tab_git:
                     "Authorization": f"Bearer {token}",
                     "Accept": "application/vnd.github+json"
                 }
-                file_path = f"pseo_pages/cumulative_batch_{datetime.now().strftime('%Y%m%d_%H%M%S')}.md"
-                content_str = f"# NEXUS-01 Cumulative Batch Export\nTotal Assets: {len(st.session_state.pseo_registry)}"
+                file_path = f"pseo_pages/master_batch_{datetime.now().strftime('%Y%m%d_%H%M%S')}.md"
+                content_str = f"# NEXUS-01 Master Batch Export\nTotal Assets: {len(st.session_state.pseo_registry)}"
                 encoded_content = base64.b64encode(content_str.encode("utf-8")).decode("utf-8")
                 
                 payload = {
-                    "message": "feat(pseo): cumulative enterprise automated commit",
+                    "message": "feat(pseo): master enterprise automated commit",
                     "content": encoded_content,
                     "branch": branch
                 }
@@ -397,15 +554,20 @@ with tab_git:
                 res = requests.put(url, json=payload, headers=headers, timeout=10)
                 
                 if res.status_code in [200, 201]:
-                    st.success("Başarıyla GitHub'a commit edildi ve Vercel derlemesi tetiklendi!")
-                    st.session_state.system_logs.insert(0, f"[{datetime.now().strftime('%H:%M:%S')}] [GIT] Pushed batch to {repo}")
+                    st.success("Başarıyla GitHub'a commit edildi.")
+                    st.caption(
+                        "Not: Bu sadece GitHub'a dosya commit eder. Vercel/GitHub Pages derlemesi, "
+                        "yalnızca o repo zaten Vercel'e bağlıysa Vercel'in kendi webhook'u tarafından tetiklenir — "
+                        "bu kod bunu doğrudan tetiklemez."
+                    )
+                    siem_log(f"[GIT] Pushed batch to {repo}", actor="git-publisher")
                     save_state()
                 else:
                     st.warning(f"Git API Yanıt Kodu: {res.status_code}. Bilgilerinizi kontrol edin.")
             except Exception as e:
                 st.error(f"Git Push bağlantı hatası: {e}")
 
-# --- TAB 8: REAL API & WEBHOOKS ---
+# --- TAB 7: REAL API & WEBHOOKS ---
 with tab_api:
     st.subheader("🔌 Gerçek Dünya API ve Ödeme Ağ Geçidi Entegrasyonları")
     st.markdown("OpenAI, Anthropic anahtarlarınızı ve Stripe webhook adresinizi buraya tanımlayarak sistemi canlı üretime geçirebilirsiniz.")
@@ -418,29 +580,202 @@ with tab_api:
         save_state()
         st.success("API ve Webhook ayarları güvenle diske kaydedildi!")
 
-# --- TAB 9: VECTOR-RAG ---
+# --- TAB 8: VECTOR-RAG (artık gerçek ChromaDB embedding DB + TF-IDF yedek) ---
 with tab_rag:
     st.subheader("Vector-RAG Semantik Bellek Sorgulama")
-    q = st.text_input("Semantik Vektör Uzayında Arama Yapın:", "autonomous scaling & security")
-    if st.button("Vektörleri Sorgula"):
-        st.success("Semantik uzayda 24 düğüm eşleşti (Benzerlik Skoru: %99.98).")
 
-# --- TAB 10: HEALTH CHECK ---
+    if CHROMADB_AVAILABLE:
+        st.markdown("**Gerçek, diske kalıcı embedding veritabanı (ChromaDB)**")
+        embed_mode = st.radio(
+            "Embedding kaynağı:",
+            ["Yerel (ücretsiz, ilk kullanımda ~80MB model indirir, internet şart)",
+             "OpenAI (API key gerektirir, Sekme 7'de girilmiş olmalı)"],
+            horizontal=False,
+        )
+        use_openai = embed_mode.startswith("OpenAI")
+
+        @st.cache_resource(show_spinner="Chroma istemcisi başlatılıyor...")
+        def get_chroma_collection(_use_openai: bool, _openai_key: str):
+            client = chromadb.PersistentClient(path="nexus_chroma_db")
+            if _use_openai and _openai_key:
+                ef = embedding_functions.OpenAIEmbeddingFunction(
+                    api_key=_openai_key, model_name="text-embedding-3-small"
+                )
+                return client.get_or_create_collection("nexus_vectors_openai", embedding_function=ef)
+            # Farklı embedding fonksiyonları farklı boyutlarda vektör ürettiği için
+            # (yerel MiniLM 384-boyut, OpenAI 1536-boyut) iki ayrı koleksiyon kullanılıyor;
+            # aksi halde boyut uyuşmazlığı hatası alınır.
+            return client.get_or_create_collection("nexus_vectors_local")
+
+        col_c1, col_c2 = st.columns(2)
+        with col_c1:
+            if st.button("Chroma'ya Yeniden İndeksle"):
+                if use_openai and not st.session_state.openai_key:
+                    st.error("OpenAI embedding seçtiniz ama API key girilmemiş (Sekme 7).")
+                else:
+                    try:
+                        collection = get_chroma_collection(use_openai, st.session_state.openai_key)
+                        ids, docs = [], []
+                        for i, item in enumerate(st.session_state.pseo_registry):
+                            ids.append(f"pseo-{i}")
+                            docs.append(f"{item.get('Keyword','')} {item.get('Category','')} {item.get('Source','')}")
+                        for i, entry in enumerate(st.session_state.system_logs):
+                            if isinstance(entry, dict):
+                                ids.append(f"log-{i}-{entry['hash'][:8]}")
+                                docs.append(entry["event"])
+                        if docs:
+                            collection.upsert(ids=ids, documents=docs)
+                            st.success(f"{len(docs)} gerçek kayıt ChromaDB'ye (diske kalıcı) indekslendi.")
+                        else:
+                            st.warning("İndekslenecek veri yok.")
+                    except Exception as e:
+                        st.error(
+                            f"İndeksleme başarısız (muhtemelen embedding modeli indirilemedi / internet yok): {e}\n"
+                            "Aşağıdaki TF-IDF yedeği internet gerektirmeden her zaman çalışır."
+                        )
+        with col_c2:
+            chroma_q = st.text_input("Chroma'da semantik sorgula:", "autonomous scaling")
+            if st.button("Chroma'da Sorgula"):
+                try:
+                    collection = get_chroma_collection(use_openai, st.session_state.openai_key)
+                    res = collection.query(query_texts=[chroma_q], n_results=5)
+                    docs_found = res["documents"][0] if res["documents"] else []
+                    if not docs_found:
+                        st.info("Koleksiyon boş veya hiç sonuç yok — önce indeksleyin.")
+                    else:
+                        for doc, dist in zip(docs_found, res["distances"][0]):
+                            st.success(f"{doc}  — mesafe: {dist:.4f} (düşük = daha benzer)")
+                except Exception as e:
+                    st.error(f"Chroma sorgusu başarısız: {e}")
+        st.divider()
+        st.caption("Aşağıdaki TF-IDF araması internet/embedding modeli gerektirmeyen, her zaman çalışan bir yedektir:")
+    else:
+        st.info("chromadb kurulu değil — `pip install chromadb` ile ekleyin. Aşağıda TF-IDF yedeği çalışıyor.")
+
+    q = st.text_input("Semantik Vektör Uzayında Arama Yapın (TF-IDF):", "autonomous scaling")
+    if st.button("Vektörleri Sorgula"):
+        if not SKLEARN_AVAILABLE:
+            st.error("scikit-learn kurulu değil. `pip install scikit-learn` ile ekleyin (requirements.txt'e eklendi).")
+        else:
+            corpus, labels = [], []
+            for item in st.session_state.pseo_registry:
+                text = f"{item.get('Keyword','')} {item.get('Category','')} {item.get('Source','')}"
+                corpus.append(text)
+                labels.append(f"[pSEO] {item.get('Keyword','')}")
+            for entry in st.session_state.system_logs:
+                if isinstance(entry, dict):
+                    corpus.append(entry["event"])
+                    labels.append(f"[LOG] {entry['event']}")
+
+            if not corpus:
+                st.warning("Vektörize edilecek hiçbir veri yok — önce pSEO sayfası üretin veya işlem yapın.")
+            else:
+                vectorizer = TfidfVectorizer(stop_words="english")
+                try:
+                    matrix = vectorizer.fit_transform(corpus + [q])
+                    sims = cosine_similarity(matrix[-1], matrix[:-1]).flatten()
+                    ranked = sorted(zip(labels, sims), key=lambda x: x[1], reverse=True)[:5]
+                    ranked = [(l, s) for l, s in ranked if s > 0]
+                    if not ranked:
+                        st.info("Sorguyla örtüşen hiçbir gerçek düğüm bulunamadı (benzerlik skoru 0).")
+                    else:
+                        for label, score in ranked:
+                            st.success(f"{label} — Benzerlik Skoru: %{score*100:.2f}")
+                except ValueError:
+                    st.info("Sorgu, mevcut veriyle (stop-word dışı) hiçbir ortak terim paylaşmıyor.")
+
+# --- TAB 9: HEALTH CHECK (artık gerçekten test ediyor) ---
 with tab_health:
     st.subheader("🩺 Sistem Sağlık Tanılama (Health-Check)")
     if st.button("Sistem Tanılamasını Çalıştır"):
-        st.success("✅ Disk Yazma İzni: Aktif (nexus_cumulative_state.json)")
-        st.success("✅ Bellek Bütünlüğü: Sağlam (0 Hata)")
-        st.success("✅ Çok Dilli Motor (i18n): 11 Dil Aktif")
-        st.success("✅ Çift Çekirdek (pSEO + CYBER-NEXUS): Entegre")
-        st.success("✅ Gerçek API Köprüleri: Hazır")
+        # 1) Gerçek disk yazma testi
+        try:
+            test_path = STATE_FILE + ".healthcheck_tmp"
+            with open(test_path, "w") as f:
+                f.write("ok")
+            os.remove(test_path)
+            st.success("✅ Disk Yazma İzni: Aktif (gerçek test dosyası yazıldı ve silindi)")
+        except Exception as e:
+            st.error(f"❌ Disk Yazma İzni: BAŞARISIZ — {e}")
 
-# --- TAB 11: SIEM LOGS ---
+        # 2) Gerçek SIEM zincir bütünlüğü doğrulaması
+        break_point = verify_log_chain(st.session_state.system_logs)
+        if break_point is None:
+            st.success(f"✅ Denetim Günlüğü Bütünlüğü: Sağlam ({len(st.session_state.system_logs)} girdi, hash zinciri kopmamış)")
+        else:
+            st.error(f"❌ Denetim Günlüğü Bütünlüğü: Zincir {break_point}. girdide bozulmuş — olası kurcalama!")
+
+        # 3) i18n gerçek sayım
+        st.success(f"✅ Çok Dilli Motor (i18n): {len(TRANSLATIONS)} dil aktif ve sözlükte dolu")
+
+        # 4) API anahtarlarının gerçek varlık kontrolü (geçerliliğini değil, sadece girilip girilmediğini test eder)
+        api_status = []
+        api_status.append("OpenAI key: girilmiş ✅" if st.session_state.openai_key else "OpenAI key: girilmemiş ⚠️")
+        api_status.append("Anthropic key: girilmiş ✅" if st.session_state.anthropic_key else "Anthropic key: girilmemiş ⚠️")
+        st.info(" | ".join(api_status) + " (not: format/geçerlilik doğrulanmıyor, sadece boş mu dolu mu kontrol ediliyor)")
+
+# --- TAB 10: SIEM LOGS (artık hash-zincirli, tamper-evident) ---
 with tab_siem:
-    st.subheader("🛡️ SIEM Kurumsal Denetim Günlüğü")
+    st.subheader("🛡️ Denetim Günlüğü (Hash-Zincirli, Append-Only)")
+    break_point = verify_log_chain(st.session_state.system_logs)
+    if break_point is None:
+        st.caption("🔒 Zincir bütünlüğü doğrulandı — hiçbir girdi sonradan değiştirilmemiş.")
+    else:
+        st.error(f"⚠️ Zincir {break_point}. girdide bozulmuş.")
     with st.container(height=350):
         for log in st.session_state.system_logs:
-            st.text(log)
+            if isinstance(log, dict):
+                st.text(f"[{log['ts']}] ({log['actor']}) {log['event']}  — hash: {log['hash'][:12]}…")
+            else:
+                st.text(f"(eski format) {log}")
+
+# --- TAB 11: CYBER-SCOUT (gerçek ama pasif ve rıza-sınırlı) ---
+with tab_cyber:
+    st.subheader("🛰️ Cyber-Scout — Pasif Güvenlik Başlığı Taraması")
+    st.warning(
+        "Bu, raporun vaat ettiği 'otonom Red/Blue Team, ağ tarama, otomatik yama' sisteminin "
+        "**küçük, güvenli ve gerçek** bir ilk parçasıdır. Burada yapılan şey: sadece belirttiğiniz "
+        "URL'ye tek bir HTTP isteği atıp, yanıttaki güvenlik başlıklarını (HSTS, CSP, X-Frame-Options vb.) "
+        "okumak — port taraması, zafiyet istismarı veya otomatik müdahale **yapılmıyor** ve kasıtlı olarak eklenmiyor. "
+        "Aktif tarama/istismar, yalnızca sahibi olduğunuz veya yazılı test izni aldığınız sistemlerde, "
+        "insan onayıyla yapılmalıdır."
+    )
+    target_url = st.text_input("Taranacak URL (sadece sahibi olduğunuz/izinli bir domain):", "https://example.com")
+    consent = st.checkbox("Bu domain'in sahibiyim veya test için yazılı iznim var.")
+
+    if st.button("Pasif Güvenlik Başlığı Taramasını Çalıştır"):
+        if not consent:
+            st.error("İzin onayı olmadan tarama çalıştırılmıyor.")
+        else:
+            parsed = urlparse(target_url if "://" in target_url else f"https://{target_url}")
+            if not parsed.netloc:
+                st.error("Geçersiz URL.")
+            else:
+                try:
+                    res = requests.get(parsed.geturl(), timeout=8)
+                    headers = res.headers
+                    checks = {
+                        "Strict-Transport-Security": "HSTS",
+                        "Content-Security-Policy": "CSP",
+                        "X-Frame-Options": "Clickjacking koruması",
+                        "X-Content-Type-Options": "MIME-sniffing koruması",
+                        "Referrer-Policy": "Referrer sızıntısı koruması",
+                    }
+                    findings = []
+                    for header, label in checks.items():
+                        if header in headers:
+                            findings.append(f"✅ {label} ({header}) mevcut")
+                        else:
+                            findings.append(f"⚠️ {label} ({header}) eksik")
+                    st.success(f"HTTP {res.status_code} — {parsed.netloc} gerçek yanıtı alındı.")
+                    for f in findings:
+                        st.write(f)
+                    missing = sum(1 for h in checks if h not in headers)
+                    defcon = "DEFCON 5 (iyi)" if missing == 0 else "DEFCON 4" if missing <= 2 else "DEFCON 2 (dikkat)"
+                    siem_log(f"[CYBER-SCOUT] Passive header scan on {parsed.netloc}: {missing} header eksik, {defcon}", actor="cyber-scout")
+                    save_state()
+                except Exception as e:
+                    st.error(f"Bağlantı hatası: {e}")
 
 st.divider()
-st.markdown("<p style='text-align: center; color: #64748b; font-size: 0.85rem;'>NEXUS-01 & CYBER-NEXUS Zero-Loss Cumulative Master Core • 11 Dilli & Tam Donanımlı</p>", unsafe_allow_html=True)
+st.markdown("<p style='text-align: center; color: #64748b; font-size: 0.85rem;'>NEXUS-01 Master Enterprise Core • 11 Dilli Küresel Çekirdek & Gerçek API Entegrasyonlu</p>", unsafe_allow_html=True)
