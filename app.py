@@ -166,7 +166,7 @@ with tab_batch:
             if not any(d['Keyword'] == kw for d in st.session_state.pseo_registry):
                 st.session_state.pseo_registry.append({"Keyword": kw, "Category": niche_input, "Status": "Synthesized & Queued"})
         
-        st.session_state.system_logs.insert(0, f"[{datetime.now().strftime('%H:%M:%S')}] [PSEO] '{niche_input' için yeni sayfalar sentezlendi.")
+        st.session_state.system_logs.insert(0, f"[{datetime.now().strftime('%H:%M:%S')}] [PSEO] '{niche_input}' için yeni sayfalar sentezlendi.")
         save_state()
         st.success(f"Başarıyla yeni pSEO sayfaları üretildi ve kayıt defterine eklendi!")
     
